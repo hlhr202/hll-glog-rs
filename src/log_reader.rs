@@ -96,6 +96,10 @@ impl<T: Read> LogBufReaderV4<T> {
     }
 
     pub fn read(&mut self, out_buffer: &mut [u8]) -> anyhow::Result<i64, io::Error> {
+        if self.reader.buffer().len() < 2 + 1 + 8 {
+            return Ok(-1);
+        }
+
         let byte: &mut [u8; 1] = &mut [0; 1];
         self.reader.read_exact(byte)?;
         let ms = byte[0] as i32;
@@ -209,12 +213,8 @@ pub fn read<T: Read>(reader: BufReader<T>, pri_key: &str) -> anyhow::Result<()> 
                 println!("content: {:?}", String::from_utf8_lossy(&content));
             }
             Err(e) => {
-                if e.kind() == io::ErrorKind::UnexpectedEof {
-                    break;
-                } else {
-                    println!("error: {}", e);
-                    break;
-                }
+                println!("error: {}", e);
+                break;
             }
         }
     }
