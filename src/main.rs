@@ -9,6 +9,6 @@ fn main() -> Result<()> {
     let pri_key = std::env::var("PRI_KEY")?;
     let file = File::open("ATRealTimeLog-20230803163848626.glog").unwrap();
     let reader = BufReader::new(file);
-    log_reader::read(reader, &pri_key)?;
+    log_reader::read(reader, &pri_key, |content| println!("{}", content))?;
     Ok(())
 }

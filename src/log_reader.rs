@@ -1,7 +1,8 @@
 use crate::decrypt::AESDecryptor;
+use anyhow::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use std::io::{self, BufReader, Read};
+use std::io::{BufReader, Read};
 
 const SINGLE_LOG_CONTENT_MAX_LENGTH: usize = 16 * 1024;
 const MAGIC_NUMBER: [u8; 4] = [0x1B, 0xAD, 0xC0, 0xDE];
@@ -32,15 +33,12 @@ struct LogBufReaderV4<T: Read> {
 }
 
 impl<T: Read> LogBufReaderV4<T> {
-    pub fn read_header(&mut self) -> Result<(), io::Error> {
+    pub fn read_header(&mut self) -> Result<()> {
         let magic: &mut [u8; 4] = &mut [0; 4];
         self.reader.read_exact(magic)?;
 
         if magic != &MAGIC_NUMBER {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "magic number not match",
-            ));
+            return Err(anyhow::anyhow!("magic number not match"));
         }
 
         let next = &mut [0; 1];
@@ -55,10 +53,7 @@ impl<T: Read> LogBufReaderV4<T> {
                 // println!("version: 4");
             }
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "version not match",
-                ));
+                return Err(anyhow::anyhow!("illegal version"));
             }
         }
 
@@ -67,13 +62,13 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(())
     }
 
-    pub fn read_u16le(&mut self) -> Result<u16, io::Error> {
+    pub fn read_u16le(&mut self) -> Result<u16> {
         let mut buffer = [0; 2];
         self.reader.read_exact(&mut buffer)?;
         Ok(u16::from_le_bytes(buffer))
     }
 
-    pub fn read_remain_header(&mut self) -> Result<(), io::Error> {
+    pub fn read_remain_header(&mut self) -> Result<()> {
         let proto_name_len = self.read_u16le()? as usize;
         let mut name: Vec<u8> = vec![0; proto_name_len];
         self.reader.read_exact(&mut name)?;
@@ -84,10 +79,7 @@ impl<T: Read> LogBufReaderV4<T> {
         self.reader.read_exact(sync_marker)?;
 
         if sync_marker != &SYNC_MARKER {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "sync marker not match",
-            ));
+            return Err(anyhow::anyhow!("sync marker not match"));
         }
 
         self.position += 4 + 1 + 2 + proto_name_len as i64 + 8;
@@ -95,7 +87,7 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(())
     }
 
-    pub fn read(&mut self, out_buffer: &mut [u8]) -> anyhow::Result<i64, io::Error> {
+    pub fn read(&mut self, out_buffer: &mut [u8]) -> Result<i64> {
         if self.reader.buffer().len() < 2 + 1 + 8 {
             return Ok(-1);
         }
@@ -153,20 +145,16 @@ impl<T: Read> LogBufReaderV4<T> {
                 let mut buf = vec![0; log_len as usize];
                 self.reader.read_exact(&mut buf)?;
 
-                let plain = self
-                    .decryptor
-                    .decrypt(client_pubkey, iv, &mut buf)
-                    .map_err(|e| {
-                        io::Error::new(io::ErrorKind::InvalidData, format!("decrypt failed: {}", e))
-                    })?;
+                self.decryptor
+                    .decrypt_inplace(client_pubkey, iv, &mut buf)?;
 
-                if plain.is_empty() {
+                if buf.is_empty() {
                     return Ok(-5);
                 }
 
                 match compress_mode {
                     CompressMode::None => {
-                        out_buffer[..plain.len()].copy_from_slice(plain);
+                        out_buffer[..buf.len()].copy_from_slice(&buf);
                     }
                     CompressMode::Zlib => todo!("compress_mode: Zlib"),
                 }
@@ -187,7 +175,11 @@ impl<T: Read> LogBufReaderV4<T> {
     }
 }
 
-pub fn read<T: Read>(reader: BufReader<T>, pri_key: &str) -> anyhow::Result<()> {
+pub fn read<T: Read>(
+    reader: BufReader<T>,
+    pri_key: &str,
+    mut callback: impl FnMut(&str),
+) -> Result<()> {
     let decryptor = AESDecryptor::new(pri_key)?;
 
     let mut file_reader = LogBufReaderV4 {
@@ -210,7 +202,8 @@ pub fn read<T: Read>(reader: BufReader<T>, pri_key: &str) -> anyhow::Result<()> 
                     break;
                 }
                 let content = buffer[0..size as usize].to_vec();
-                println!("content: {:?}", String::from_utf8_lossy(&content));
+                let content = String::from_utf8_lossy(&content);
+                callback(&content);
             }
             Err(e) => {
                 println!("error: {}", e);
