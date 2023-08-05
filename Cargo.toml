@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 aes = "0.8.3"
 anyhow = "1.0.72"
+bincode = "1.3.3"
+byteorder = "1.4.3"
 cfb-mode = "0.8.2"
 crypto = { version = "0.5.1", features = ["elliptic-curve", "cipher"] }
 dotenvy = "0.15.7"
@@ -16,3 +18,5 @@ hex = "0.4.3"
 k256 = { version = "0.13.1", features = ["ecdh"] }
 num-derive = "0.4.0"
 num-traits = "0.2.16"
+serde = "1.0.181"
+thiserror = "1.0.44"
