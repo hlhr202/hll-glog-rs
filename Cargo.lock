@@ -244,6 +244,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "glog-rust"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "byteorder",
+ "cfb-mode",
+ "dotenvy",
+ "elliptic-curve",
+ "flate2",
+ "hex",
+ "k256",
+ "num-derive",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -466,24 +484,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "test-glog-rust"
-version = "0.1.0"
-dependencies = [
- "aes",
- "anyhow",
- "byteorder",
- "cfb-mode",
- "dotenvy",
- "elliptic-curve",
- "flate2",
- "hex",
- "k256",
- "num-derive",
- "num-traits",
- "thiserror",
 ]
 
 [[package]]
