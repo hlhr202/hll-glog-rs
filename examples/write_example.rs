@@ -1,4 +1,5 @@
-use glog_rust::log_writer;
+use anyhow::Result;
+use glog_rust::log_writer::{self, CompressMode, EncryptMode};
 
 fn create_logs() -> Vec<String> {
     let mut logs = vec![];
@@ -12,15 +13,24 @@ fn create_logs() -> Vec<String> {
     logs
 }
 
-fn main() {
-    let file = std::fs::File::create("test.glog").unwrap();
+fn main() -> Result<()> {
+    dotenvy::from_path(".env.local")?;
+    let pub_key = std::env::var("PUB_KEY")?;
+    let file = std::fs::File::create("test.glog")?;
     let mut writer = std::io::BufWriter::new(file);
 
     let logs = create_logs();
 
-    log_writer::write_head(&mut writer).unwrap();
+    log_writer::write_head(&mut writer)?;
 
     for log in logs {
-        log_writer::write_single_log(&mut writer, &log).unwrap();
+        log_writer::write_single_log(
+            &mut writer,
+            &(CompressMode::Zlib, EncryptMode::Aes),
+            &pub_key,
+            &log,
+        )?;
     }
+
+    Ok(())
 }

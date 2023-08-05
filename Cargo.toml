@@ -17,6 +17,7 @@ hex = "0.4.3"
 k256 = { version = "0.13.1", features = ["ecdh"] }
 num-derive = "0.4.0"
 num-traits = "0.2.16"
+rand = "0.8.5"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 thiserror = "1.0.44"
 

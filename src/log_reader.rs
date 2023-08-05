@@ -1,5 +1,5 @@
 use crate::cipher::aes_cfb_ecdh::Cipher;
-use crate::decompress::decompress_zlib;
+use crate::compression::decompress_zlib;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
 use num_derive::FromPrimitive;
@@ -90,7 +90,7 @@ impl<T: Read> LogBufReaderV4<T> {
         let proto_name_len: usize = self.reader.read_u16::<LittleEndian>()?.into();
         let mut name: Vec<u8> = vec![0; proto_name_len];
         self.reader.read_exact(&mut name)?;
-        // let proto_name = String::from_utf8(name).unwrap();
+        // let proto_name = String::from_utf8(name)?;
         // println!("proto_name: {}", proto_name);
 
         let sync_marker = &self.reader.read_u64::<LittleEndian>()?.to_le_bytes();

@@ -6,6 +6,7 @@ use anyhow::Result;
 use cfb_mode::{Decryptor, Encryptor};
 use elliptic_curve::ecdh::SharedSecret;
 use k256::Secp256k1;
+use rand::{thread_rng, Rng};
 
 use super::key_pair::KeyPair;
 
@@ -26,13 +27,19 @@ impl Cipher {
         self.key_pair.diffie_hellman(client_pub_key)
     }
 
+    pub fn random_iv() -> [u8; 16] {
+        let mut iv = [0u8; 16];
+        thread_rng().fill(&mut iv[..]);
+        iv
+    }
+
     pub fn decrypt_inplace<'a>(
-        &'a mut self,
-        client_pub_key: &[u8],
+        &'a self,
+        pub_key: &[u8],
         iv: &[u8],
         buffer: &'a mut [u8],
     ) -> Result<()> {
-        let shared = self.get_shared_key(client_pub_key)?;
+        let shared = self.get_shared_key(pub_key)?;
         let aes_key = &shared.raw_secret_bytes()[0..16];
         let cipher = Aes128CfbDec::new(aes_key.into(), iv.into());
 
@@ -41,17 +48,16 @@ impl Cipher {
     }
 
     pub fn encrypt_inplace<'a>(
-        &'a mut self,
-        client_pub_key: &[u8],
+        &'a self,
+        pub_key: &[u8],
         iv: &[u8],
         buffer: &'a mut [u8],
     ) -> Result<()> {
-        let shared = self.get_shared_key(client_pub_key)?;
+        let shared = self.get_shared_key(pub_key)?;
         let aes_key = &shared.raw_secret_bytes()[0..16];
         let cipher = Aes128CfbEnc::new(aes_key.into(), iv.into());
 
         cipher.encrypt(buffer);
-
         Ok(())
     }
 }
