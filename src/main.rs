@@ -1,10 +1,6 @@
 use anyhow::Result;
+use glog_rust::log_reader;
 use std::{fs::File, io::BufReader};
-
-mod log_writer;
-mod compression;
-mod cipher;
-mod log_reader;
 
 fn main() -> Result<()> {
     dotenvy::from_path(".env.local")?;
