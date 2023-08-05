@@ -5,8 +5,9 @@ Rust implementation of log reader for [hll-glog](https://github.com/HuolalaTech/
 - [X] File V4 (wip)
   - [x] File Header
   - [x] AES
-  - [ ] Zlib
+  - [x] Zlib
 - [ ] FileV3
+- [ ] Writer
 - [ ] API
 
 ## Acknowledgements

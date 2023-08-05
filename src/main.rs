@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::{fs::File, io::BufReader};
 
 mod log_writer;
+mod decompress;
 mod decrypt;
 mod log_reader;
 

@@ -1,3 +1,4 @@
+use crate::decompress::decompress_zlib;
 use crate::decrypt::AESDecryptor;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -47,6 +48,9 @@ pub enum LogBufReadError {
 
     #[error("decryption error")]
     DecryptionError,
+
+    #[error("decompress error")]
+    DecompressError,
 }
 
 struct LogBufReaderV4<T: Read> {
@@ -166,11 +170,43 @@ impl<T: Read> LogBufReaderV4<T> {
                 match compress_mode {
                     CompressMode::None => {
                         out_buffer[..buf.len()].copy_from_slice(&buf);
+                        log_len = buf.len() as i64;
                     }
-                    CompressMode::Zlib => todo!("compress_mode: Zlib"),
+                    CompressMode::Zlib => {
+                        let plain =
+                            decompress_zlib(&buf).map_err(|_| LogBufReadError::DecompressError)?;
+                        out_buffer[..plain.len()].copy_from_slice(&plain);
+                        log_len = plain.len() as i64;
+                    }
                 }
             }
-            EncryptMode::None => todo!("encrypt_mode: None"),
+            EncryptMode::None => {
+                log_len = self.reader.read_u16::<LittleEndian>()?.into();
+
+                // println!("log_len: {}", log_len);
+
+                if log_len <= 0 || log_len > SINGLE_LOG_CONTENT_MAX_LENGTH as i64 {
+                    return Ok(-6);
+                }
+
+                self.position += 2 + log_len;
+
+                let mut buf = vec![0; log_len as usize];
+                self.reader.read_exact(&mut buf)?;
+
+                match compress_mode {
+                    CompressMode::None => {
+                        out_buffer[..buf.len()].copy_from_slice(&buf);
+                        log_len = buf.len() as i64;
+                    }
+                    CompressMode::Zlib => {
+                        let plain =
+                            decompress_zlib(&buf).map_err(|_| LogBufReadError::DecompressError)?;
+                        out_buffer[..plain.len()].copy_from_slice(&plain);
+                        log_len = plain.len() as i64;
+                    }
+                }
+            }
         }
 
         let sync_marker = &self.reader.read_u64::<LittleEndian>()?.to_le_bytes();
