@@ -20,6 +20,7 @@ async fn main() {
     dotenvy::from_path(".env.local").unwrap();
     let app = Router::new().route("/", post(upload));
 
+    println!("listening on 8080");
     axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
         .serve(app.into_make_service())
         .await

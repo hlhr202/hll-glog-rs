@@ -4,16 +4,40 @@ Rust implementation of log reader for [hll-glog](https://github.com/HuolalaTech/
 
 ## Progress
 
--   [x] File V4
+-   [x] File V4 Reader
     -   [x] File Header
     -   [x] AES
     -   [x] Zlib
--   [ ] FileV3
--   [x] Writer V4 (wip)
+-   [x] File V4 Writer (wip, just for testing)
     -   [x] File Header
     -   [ ] AES
     -   [ ] Zlib
+-   [ ] FileV3
 -   [x] API
+
+## Example
+
+-   write test.glog
+
+```bash
+# run under project root foler
+cargo run --example write_example
+```
+
+-   read test.glog
+
+```bash
+# run under project root foler
+cargo run --example read_example
+```
+
+-   http read buffer from multipart
+
+```bash
+# run both under project root foler
+cargo run --example http
+curl --form file='@test.glog' http://localhost:8080
+```
 
 ## Acknowledgements
 
