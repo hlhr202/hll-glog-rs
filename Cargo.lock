@@ -419,6 +419,7 @@ dependencies = [
  "k256",
  "num-derive",
  "num-traits",
+ "rand_core",
  "thiserror",
  "tokio",
 ]

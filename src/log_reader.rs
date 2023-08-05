@@ -1,5 +1,5 @@
+use crate::cipher::aes_cfb_ecdh::Cipher;
 use crate::decompress::decompress_zlib;
-use crate::decrypt::AESDecryptor;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
 use num_derive::FromPrimitive;
@@ -56,7 +56,7 @@ pub enum LogBufReadError {
 struct LogBufReaderV4<T: Read> {
     reader: BufReader<T>,
     position: i64,
-    decryptor: AESDecryptor,
+    cipher: Cipher,
 }
 
 impl<T: Read> LogBufReaderV4<T> {
@@ -159,7 +159,7 @@ impl<T: Read> LogBufReaderV4<T> {
                 let mut buf = vec![0; log_len as usize];
                 self.reader.read_exact(&mut buf)?;
 
-                self.decryptor
+                self.cipher
                     .decrypt_inplace(client_pubkey, iv, &mut buf)
                     .map_err(|_| LogBufReadError::DecryptionError)?;
 
@@ -226,12 +226,12 @@ pub fn read<T: Read>(
     pri_key: &str,
     mut callback: impl FnMut(&str),
 ) -> Result<(), LogBufReadError> {
-    let decryptor = AESDecryptor::new(pri_key).map_err(|_| LogBufReadError::InvalidSecret)?;
+    let cipher = Cipher::new(pri_key).map_err(|_| LogBufReadError::InvalidSecret)?;
 
     let mut file_reader = LogBufReaderV4 {
         reader,
         position: 0,
-        decryptor,
+        cipher,
     };
 
     let mut buffer = [0; SINGLE_LOG_CONTENT_MAX_LENGTH];

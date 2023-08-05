@@ -3,7 +3,7 @@ use std::{fs::File, io::BufReader};
 
 mod log_writer;
 mod decompress;
-mod decrypt;
+mod cipher;
 mod log_reader;
 
 fn main() -> Result<()> {
