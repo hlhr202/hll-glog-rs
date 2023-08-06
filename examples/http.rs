@@ -1,7 +1,7 @@
 use std::io::BufReader;
 
 use axum::{extract::Multipart, routing::post, Router};
-use glog_rust::log_reader;
+use glog_rust::io::log_reader;
 
 async fn upload(mut multipart: Multipart) {
     while let Some(field) = multipart.next_field().await.unwrap() {

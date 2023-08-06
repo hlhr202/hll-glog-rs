@@ -1,5 +1,5 @@
 use anyhow::Result;
-use glog_rust::log_reader;
+use glog_rust::io::log_reader;
 use std::{fs::File, io::BufReader};
 
 fn main() -> Result<()> {

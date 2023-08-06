@@ -7,6 +7,8 @@ use num_traits::FromPrimitive;
 use std::io::{BufReader, Read};
 use thiserror::Error;
 
+use super::primitive::{CompressMode, EncryptMode};
+
 const SINGLE_LOG_CONTENT_MAX_LENGTH: usize = 16 * 1024;
 const MAGIC_NUMBER: [u8; 4] = [0x1B, 0xAD, 0xC0, 0xDE];
 const SYNC_MARKER: [u8; 8] = [0xB7, 0xDB, 0xE7, 0xDB, 0x80, 0xAD, 0xD9, 0x57];
@@ -15,18 +17,6 @@ const SYNC_MARKER: [u8; 8] = [0xB7, 0xDB, 0xE7, 0xDB, 0x80, 0xAD, 0xD9, 0x57];
 enum FileVersion {
     V3 = 3,
     V4 = 4,
-}
-
-#[derive(Debug)]
-enum CompressMode {
-    None = 1,
-    Zlib = 2,
-}
-
-#[derive(Debug)]
-enum EncryptMode {
-    None = 1,
-    Aes = 2,
 }
 
 #[derive(Debug, Error)]
@@ -45,6 +35,9 @@ pub enum LogBufReadError {
 
     #[error("invalid sync marker")]
     InvalidSyncMarker,
+
+    #[error("invalid log length")]
+    InvalidLogLength,
 
     #[error("decryption error")]
     DecryptionError,
@@ -86,20 +79,32 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(())
     }
 
+    pub fn read_sync_marker(&mut self) -> Result<(), LogBufReadError> {
+        let sync_marker = &self.reader.read_u64::<LittleEndian>()?.to_le_bytes();
+        if sync_marker != &SYNC_MARKER {
+            return Err(LogBufReadError::InvalidSyncMarker);
+        }
+        self.position += 8;
+        Ok(())
+    }
+
+    pub fn read_log_length(&mut self) -> Result<i64, LogBufReadError> {
+        let log_len = self.reader.read_u16::<LittleEndian>()?.into();
+        if log_len <= 0 || log_len > SINGLE_LOG_CONTENT_MAX_LENGTH as i64 {
+            return Err(LogBufReadError::InvalidLogLength);
+        }
+        self.position += 2;
+        Ok(log_len)
+    }
+
     pub fn read_remain_header(&mut self) -> Result<(), LogBufReadError> {
         let proto_name_len: usize = self.reader.read_u16::<LittleEndian>()?.into();
         let mut name: Vec<u8> = vec![0; proto_name_len];
         self.reader.read_exact(&mut name)?;
         // let proto_name = String::from_utf8(name)?;
         // println!("proto_name: {}", proto_name);
-
-        let sync_marker = &self.reader.read_u64::<LittleEndian>()?.to_le_bytes();
-
-        if sync_marker != &SYNC_MARKER {
-            return Err(LogBufReadError::InvalidSyncMarker);
-        }
-
-        self.position += 4 + 1 + 2 + proto_name_len as i64 + 8;
+        self.read_sync_marker()?;
+        self.position += 4 + 1 + 2 + proto_name_len as i64;
 
         Ok(())
     }
@@ -137,28 +142,17 @@ impl<T: Read> LogBufReaderV4<T> {
         #[allow(unused_assignments)]
         let mut log_len: i64 = 0;
 
-        match encrypt_mode {
+        let buf = match encrypt_mode {
             EncryptMode::Aes => {
                 let iv = &self.reader.read_u128::<LittleEndian>()?.to_le_bytes();
-
                 let client_pubkey: &mut [u8; 64] = &mut [0; 64];
                 self.reader.read_exact(client_pubkey)?;
-
                 self.position += 16 + 64;
 
-                log_len = self.reader.read_u16::<LittleEndian>()?.into();
-
-                // println!("log_len: {}", log_len);
-
-                if log_len <= 0 || log_len > SINGLE_LOG_CONTENT_MAX_LENGTH as i64 {
-                    return Ok(-4);
-                }
-
-                self.position += 2 + log_len;
+                log_len = self.read_log_length()?;
 
                 let mut buf = vec![0; log_len as usize];
                 self.reader.read_exact(&mut buf)?;
-
                 self.cipher
                     .decrypt_inplace(client_pubkey, iv, &mut buf)
                     .map_err(|_| LogBufReadError::DecryptionError)?;
@@ -167,55 +161,29 @@ impl<T: Read> LogBufReaderV4<T> {
                     return Ok(-5);
                 }
 
-                match compress_mode {
-                    CompressMode::None => {
-                        out_buffer[..buf.len()].copy_from_slice(&buf);
-                        log_len = buf.len() as i64;
-                    }
-                    CompressMode::Zlib => {
-                        let plain =
-                            decompress_zlib(&buf).map_err(|_| LogBufReadError::DecompressError)?;
-                        out_buffer[..plain.len()].copy_from_slice(&plain);
-                        log_len = plain.len() as i64;
-                    }
-                }
+                buf
             }
             EncryptMode::None => {
-                log_len = self.reader.read_u16::<LittleEndian>()?.into();
-
-                // println!("log_len: {}", log_len);
-
-                if log_len <= 0 || log_len > SINGLE_LOG_CONTENT_MAX_LENGTH as i64 {
-                    return Ok(-6);
-                }
-
-                self.position += 2 + log_len;
-
+                log_len = self.read_log_length()?;
                 let mut buf = vec![0; log_len as usize];
                 self.reader.read_exact(&mut buf)?;
+                buf
+            }
+        };
 
-                match compress_mode {
-                    CompressMode::None => {
-                        out_buffer[..buf.len()].copy_from_slice(&buf);
-                        log_len = buf.len() as i64;
-                    }
-                    CompressMode::Zlib => {
-                        let plain =
-                            decompress_zlib(&buf).map_err(|_| LogBufReadError::DecompressError)?;
-                        out_buffer[..plain.len()].copy_from_slice(&plain);
-                        log_len = plain.len() as i64;
-                    }
-                }
+        match compress_mode {
+            CompressMode::None => {
+                out_buffer[..buf.len()].copy_from_slice(&buf);
+                log_len = buf.len() as i64;
+            }
+            CompressMode::Zlib => {
+                let plain = decompress_zlib(&buf).map_err(|_| LogBufReadError::DecompressError)?;
+                out_buffer[..plain.len()].copy_from_slice(&plain);
+                log_len = plain.len() as i64;
             }
         }
 
-        let sync_marker = &self.reader.read_u64::<LittleEndian>()?.to_le_bytes();
-
-        if sync_marker != &SYNC_MARKER {
-            return Ok(-7);
-        }
-
-        self.position += 8;
+        self.read_sync_marker()?;
 
         Ok(log_len)
     }

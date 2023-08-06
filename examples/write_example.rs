@@ -1,5 +1,8 @@
 use anyhow::Result;
-use glog_rust::log_writer::{self, CompressMode, EncryptMode};
+use glog_rust::io::{
+    log_writer::{self},
+    primitive::{CompressMode, EncryptMode},
+};
 
 fn create_logs() -> Vec<String> {
     let mut logs = vec![];
