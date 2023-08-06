@@ -17,6 +17,12 @@ Rust implementation of log reader for [hll-glog](https://github.com/HuolalaTech/
 
 ## Example
 
+-   generate key pairs, server key will be written to .env.local
+
+```bash
+cargo run --example gen_key
+```
+
 -   write test.glog
 
 ```bash

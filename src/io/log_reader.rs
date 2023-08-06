@@ -2,22 +2,14 @@ use crate::cipher::aes_cfb_ecdh::Cipher;
 use crate::compression::decompress_zlib;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
-use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::io::{BufReader, Read};
 use thiserror::Error;
 
-use super::primitive::{CompressMode, EncryptMode};
-
-const SINGLE_LOG_CONTENT_MAX_LENGTH: usize = 16 * 1024;
-const MAGIC_NUMBER: [u8; 4] = [0x1B, 0xAD, 0xC0, 0xDE];
-const SYNC_MARKER: [u8; 8] = [0xB7, 0xDB, 0xE7, 0xDB, 0x80, 0xAD, 0xD9, 0x57];
-
-#[derive(FromPrimitive)]
-enum FileVersion {
-    V3 = 3,
-    V4 = 4,
-}
+use super::primitive::{
+    CompressMode, EncryptMode, FileVersion, MAGIC_NUMBER, SINGLE_LOG_CONTENT_MAX_LENGTH,
+    SYNC_MARKER,
+};
 
 #[derive(Debug, Error)]
 pub enum LogBufReadError {

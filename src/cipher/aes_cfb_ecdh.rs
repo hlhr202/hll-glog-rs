@@ -23,8 +23,8 @@ impl Cipher {
         Ok(Self { key_pair })
     }
 
-    pub fn get_shared_key(&self, client_pub_key: &[u8]) -> Result<SharedSecret<Secp256k1>> {
-        self.key_pair.diffie_hellman(client_pub_key)
+    pub fn get_shared_key(&self, swaped_pub_key: &[u8]) -> Result<SharedSecret<Secp256k1>> {
+        self.key_pair.diffie_hellman(swaped_pub_key)
     }
 
     pub fn random_iv() -> [u8; 16] {
@@ -35,11 +35,11 @@ impl Cipher {
 
     pub fn decrypt_inplace<'a>(
         &'a self,
-        pub_key: &[u8],
+        swaped_pub_key: &[u8],
         iv: &[u8],
         buffer: &'a mut [u8],
     ) -> Result<()> {
-        let shared = self.get_shared_key(pub_key)?;
+        let shared = self.get_shared_key(swaped_pub_key)?;
         let aes_key = &shared.raw_secret_bytes()[0..16];
         let cipher = Aes128CfbDec::new(aes_key.into(), iv.into());
 
@@ -49,15 +49,55 @@ impl Cipher {
 
     pub fn encrypt_inplace<'a>(
         &'a self,
-        pub_key: &[u8],
+        swaped_pub_key: &[u8],
         iv: &[u8],
         buffer: &'a mut [u8],
     ) -> Result<()> {
-        let shared = self.get_shared_key(pub_key)?;
+        let shared = self.get_shared_key(swaped_pub_key)?;
         let aes_key = &shared.raw_secret_bytes()[0..16];
         let cipher = Aes128CfbEnc::new(aes_key.into(), iv.into());
 
         cipher.encrypt(buffer);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cipher;
+    use super::KeyPair;
+    use anyhow::Result;
+
+    #[test]
+    fn test_encryption() -> Result<()> {
+        let plain_text = b"hello world";
+        let client_key_pair = KeyPair::random()?;
+        let server_key_pair = KeyPair::random()?;
+
+        let client_cipher = Cipher::new(&client_key_pair.private_key)?;
+        let random_iv = Cipher::random_iv();
+        let mut buffer = plain_text.to_vec();
+
+        client_cipher.encrypt_inplace(
+            &server_key_pair.to_public_key_untagged_bytes()?,
+            &random_iv,
+            &mut buffer,
+        )?;
+
+        println!("encrypted: {:?}", String::from_utf8_lossy(&buffer));
+
+        let server_cipher = Cipher::new(&server_key_pair.private_key)?;
+        server_cipher.decrypt_inplace(
+            &client_key_pair.to_public_key_untagged_bytes()?,
+            &random_iv,
+            &mut buffer,
+        )?;
+
+        println!("decrypted: {:?}", String::from_utf8_lossy(&buffer));
+        println!("decrypted == original: {}", buffer == plain_text);
+
+        assert!(buffer == plain_text);
+
         Ok(())
     }
 }

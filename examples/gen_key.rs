@@ -1,4 +1,7 @@
+use std::fs::File;
+
 use anyhow::Result;
+use elliptic_curve::pkcs8::der::Writer;
 use glog_rust::cipher::key_pair::KeyPair;
 
 fn main() -> Result<()> {
@@ -17,6 +20,15 @@ fn main() -> Result<()> {
     println!("shared1 == shared2: {}", shared1 == shared2);
 
     assert_eq!(shared1, shared2);
+
+    let mut dot_env_file = File::create(".env.local")?;
+    let envs = format!(
+        r#"PUB_KEY="{}"
+PRI_KEY="{}""#,
+        server_key.public_key, server_key.private_key
+    );
+    dot_env_file.write(envs.as_bytes())?;
+    println!("server key has been written to .env.local");
 
     Ok(())
 }

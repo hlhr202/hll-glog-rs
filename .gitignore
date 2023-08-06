@@ -1,4 +1,5 @@
 /target
 *.glog
+.env
 .env.local
 .vscode/

@@ -9,8 +9,12 @@ async fn upload(mut multipart: Multipart) {
         let pri_key = std::env::var("PRI_KEY").unwrap();
         if name == "file" {
             let data = field.bytes().await.unwrap();
-            let reader = BufReader::new(data.as_ref());
-            log_reader::read(reader, &pri_key, |content| println!("{}", content)).unwrap();
+            tokio::task::spawn_blocking(move || {
+                let reader = BufReader::new(data.as_ref());
+                log_reader::read(reader, &pri_key, |content| println!("{}", content)).unwrap();
+            })
+            .await
+            .unwrap();
         }
     }
 }
