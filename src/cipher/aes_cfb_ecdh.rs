@@ -1,3 +1,4 @@
+use super::key_pair::KeyPair;
 use aes::{
     cipher::{AsyncStreamCipher, KeyIvInit},
     Aes128,
@@ -8,14 +9,16 @@ use elliptic_curve::ecdh::SharedSecret;
 use k256::Secp256k1;
 use rand::{thread_rng, Rng};
 
-use super::key_pair::KeyPair;
-
 type Aes128CfbDec = Decryptor<Aes128>;
 type Aes128CfbEnc = Encryptor<Aes128>;
 
+#[derive(Clone)]
 pub struct Cipher {
     key_pair: KeyPair,
 }
+
+unsafe impl Send for Cipher {}
+unsafe impl Sync for Cipher {}
 
 impl Cipher {
     pub fn new(pri_key_str: &str) -> Result<Self> {

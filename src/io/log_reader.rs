@@ -1,3 +1,7 @@
+use super::primitive::{
+    CompressMode, EncryptMode, FileVersion, MAGIC_NUMBER, SINGLE_LOG_CONTENT_MAX_LENGTH,
+    SYNC_MARKER,
+};
 use crate::cipher::aes_cfb_ecdh::Cipher;
 use crate::compression::decompress_zlib;
 use anyhow::Result;
@@ -5,11 +9,6 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use num_traits::FromPrimitive;
 use std::io::{BufReader, Read};
 use thiserror::Error;
-
-use super::primitive::{
-    CompressMode, EncryptMode, FileVersion, MAGIC_NUMBER, SINGLE_LOG_CONTENT_MAX_LENGTH,
-    SYNC_MARKER,
-};
 
 #[derive(Debug, Error)]
 pub enum LogBufReadError {
@@ -38,13 +37,21 @@ pub enum LogBufReadError {
     DecompressError,
 }
 
-struct LogBufReaderV4<T: Read> {
+pub struct LogBufReaderV4<T: Read> {
     reader: BufReader<T>,
     position: i64,
     cipher: Cipher,
 }
 
 impl<T: Read> LogBufReaderV4<T> {
+    pub fn new(reader: T, cipher: Cipher) -> Self {
+        Self {
+            reader: BufReader::new(reader),
+            position: 0,
+            cipher,
+        }
+    }
+
     pub fn read_header(&mut self) -> Result<(), LogBufReadError> {
         let magic: &mut [u8; 4] = &mut self.reader.read_u32::<LittleEndian>()?.to_le_bytes();
 
@@ -71,7 +78,7 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(())
     }
 
-    pub fn read_sync_marker(&mut self) -> Result<(), LogBufReadError> {
+    fn read_sync_marker(&mut self) -> Result<(), LogBufReadError> {
         let sync_marker = &self.reader.read_u64::<LittleEndian>()?.to_le_bytes();
         if sync_marker != &SYNC_MARKER {
             return Err(LogBufReadError::InvalidSyncMarker);
@@ -80,7 +87,7 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(())
     }
 
-    pub fn read_log_length(&mut self) -> Result<i64, LogBufReadError> {
+    fn read_log_length(&mut self) -> Result<i64, LogBufReadError> {
         let log_len = self.reader.read_u16::<LittleEndian>()?.into();
         if log_len <= 0 || log_len > SINGLE_LOG_CONTENT_MAX_LENGTH as i64 {
             return Err(LogBufReadError::InvalidLogLength);
@@ -89,7 +96,7 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(log_len)
     }
 
-    pub fn read_remain_header(&mut self) -> Result<(), LogBufReadError> {
+    fn read_remain_header(&mut self) -> Result<(), LogBufReadError> {
         let proto_name_len: usize = self.reader.read_u16::<LittleEndian>()?.into();
         let mut name: Vec<u8> = vec![0; proto_name_len];
         self.reader.read_exact(&mut name)?;
@@ -101,7 +108,7 @@ impl<T: Read> LogBufReaderV4<T> {
         Ok(())
     }
 
-    pub fn read(&mut self, out_buffer: &mut [u8]) -> Result<i64, LogBufReadError> {
+    pub fn read_body(&mut self, out_buffer: &mut [u8]) -> Result<i64, LogBufReadError> {
         if self.reader.buffer().len() < 2 + 1 + 8 {
             return Ok(-1);
         }
@@ -179,36 +186,24 @@ impl<T: Read> LogBufReaderV4<T> {
 
         Ok(log_len)
     }
-}
 
-pub fn read<T: Read>(
-    reader: BufReader<T>,
-    pri_key: &str,
-    mut callback: impl FnMut(&str),
-) -> Result<(), LogBufReadError> {
-    let cipher = Cipher::new(pri_key).map_err(|_| LogBufReadError::InvalidSecret)?;
+    pub fn read(&mut self, mut callback: impl FnMut(&str)) -> Result<(), LogBufReadError> {
+        let mut buffer = [0; SINGLE_LOG_CONTENT_MAX_LENGTH];
 
-    let mut file_reader = LogBufReaderV4 {
-        reader,
-        position: 0,
-        cipher,
-    };
+        self.read_header()?;
 
-    let mut buffer = [0; SINGLE_LOG_CONTENT_MAX_LENGTH];
+        loop {
+            let size = self.read_body(&mut buffer)?;
 
-    file_reader.read_header()?;
-
-    loop {
-        let size = file_reader.read(&mut buffer)?;
-
-        // println!("size: {}", size);
-        if size <= 0 {
-            break;
+            // println!("size: {}", size);
+            if size <= 0 {
+                break;
+            }
+            let content = buffer[0..size as usize].to_vec();
+            let content = String::from_utf8_lossy(&content);
+            callback(&content);
         }
-        let content = buffer[0..size as usize].to_vec();
-        let content = String::from_utf8_lossy(&content);
-        callback(&content);
-    }
 
-    Ok(())
+        Ok(())
+    }
 }

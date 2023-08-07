@@ -8,7 +8,7 @@ use k256::{
     EncodedPoint, PublicKey, SecretKey,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KeyPair {
     pub public_key: String,
     pub private_key: String,

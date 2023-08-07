@@ -1,13 +1,12 @@
-use anyhow::Result;
-use byteorder::WriteBytesExt;
-use num_traits::ToPrimitive;
-use std::io::{BufWriter, Write};
-
 use crate::{
     cipher::{aes_cfb_ecdh::Cipher, key_pair::KeyPair},
     compression::compress_zlib,
     io::primitive::Mode,
 };
+use anyhow::Result;
+use byteorder::WriteBytesExt;
+use num_traits::ToPrimitive;
+use std::io::{BufWriter, Write};
 
 use super::primitive::{CompressMode, EncryptMode, FileVersion, MAGIC_NUMBER, SYNC_MARKER};
 

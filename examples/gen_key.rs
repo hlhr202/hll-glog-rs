@@ -1,8 +1,7 @@
-use std::fs::File;
-
 use anyhow::Result;
 use elliptic_curve::pkcs8::der::Writer;
 use glog_rust::cipher::key_pair::KeyPair;
+use std::fs::File;
 
 fn main() -> Result<()> {
     let client_key = KeyPair::random()?;
