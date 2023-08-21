@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     let file = File::open("test.glog")?;
     let reader = BufReader::new(file);
     let cipher = Cipher::new(&pri_key)?;
-    let mut log_buf_reader = LogBufReaderV4::new(reader, cipher);
+    let mut log_buf_reader = LogBufReaderV4::new(reader, &cipher);
     log_buf_reader.read(|content| println!("{}", content))?;
     Ok(())
 }

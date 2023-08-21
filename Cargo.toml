@@ -23,6 +23,7 @@ thiserror = "1.0.44"
 
 [dev-dependencies]
 axum = { version = "0.6.20", features = ["multipart"] }
+lazy_static = "1.4.0"
 tokio = { version = "1.29.1", features = ["full"] }
 
 [profile.release]

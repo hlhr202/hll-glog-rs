@@ -37,14 +37,14 @@ pub enum LogBufReadError {
     DecompressError,
 }
 
-pub struct LogBufReaderV4<T: Read> {
+pub struct LogBufReaderV4<'a, T: Read> {
     reader: BufReader<T>,
     position: i64,
-    cipher: Cipher,
+    cipher: &'a Cipher,
 }
 
-impl<T: Read> LogBufReaderV4<T> {
-    pub fn new(reader: T, cipher: Cipher) -> Self {
+impl<'a, T: Read> LogBufReaderV4<'a, T> {
+    pub fn new(reader: T, cipher: &'a Cipher) -> LogBufReaderV4<'a, T> {
         Self {
             reader: BufReader::new(reader),
             position: 0,
