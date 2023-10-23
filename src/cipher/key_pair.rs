@@ -97,7 +97,7 @@ impl KeyPair {
 
         Ok(diffie_hellman(
             secret.to_nonzero_scalar(),
-            pub_key.unwrap().as_affine(),
+            pub_key.expect("infallible").as_affine(),
         ))
     }
 }

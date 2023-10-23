@@ -26,6 +26,10 @@ impl Cipher {
         Ok(Self { key_pair })
     }
 
+    pub fn get_key_pair(&self) -> &KeyPair {
+        &self.key_pair
+    }
+
     pub fn get_shared_key(&self, swaped_pub_key: &[u8]) -> Result<SharedSecret<Secp256k1>> {
         self.key_pair.diffie_hellman(swaped_pub_key)
     }
@@ -36,11 +40,11 @@ impl Cipher {
         iv
     }
 
-    pub fn decrypt_inplace<'a>(
-        &'a self,
+    pub fn decrypt_inplace(
+        &self,
         swaped_pub_key: &[u8],
         iv: &[u8],
-        buffer: &'a mut [u8],
+        buffer: &mut [u8],
     ) -> Result<()> {
         let shared = self.get_shared_key(swaped_pub_key)?;
         let aes_key = &shared.raw_secret_bytes()[0..16];
@@ -50,11 +54,11 @@ impl Cipher {
         Ok(())
     }
 
-    pub fn encrypt_inplace<'a>(
-        &'a self,
+    pub fn encrypt_inplace(
+        &self,
         swaped_pub_key: &[u8],
         iv: &[u8],
-        buffer: &'a mut [u8],
+        buffer: &mut [u8],
     ) -> Result<()> {
         let shared = self.get_shared_key(swaped_pub_key)?;
         let aes_key = &shared.raw_secret_bytes()[0..16];

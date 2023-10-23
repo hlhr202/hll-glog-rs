@@ -3,9 +3,9 @@ use super::primitive::{
     SYNC_MARKER,
 };
 use crate::cipher::aes_cfb_ecdh::Cipher;
-use crate::compression::decompress_zlib;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
+use flate2::{Decompress, FlushDecompress};
 use num_traits::FromPrimitive;
 use std::io::{BufReader, Read};
 use thiserror::Error;
@@ -41,6 +41,7 @@ pub struct LogBufReaderV4<'a, T: Read> {
     reader: BufReader<T>,
     position: i64,
     cipher: &'a Cipher,
+    decompressor: Decompress, // use flate2::Decompress as mutable decompressor
 }
 
 impl<'a, T: Read> LogBufReaderV4<'a, T> {
@@ -49,6 +50,7 @@ impl<'a, T: Read> LogBufReaderV4<'a, T> {
             reader: BufReader::new(reader),
             position: 0,
             cipher,
+            decompressor: Decompress::new_with_window_bits(false, 15),
         }
     }
 
@@ -108,7 +110,7 @@ impl<'a, T: Read> LogBufReaderV4<'a, T> {
         Ok(())
     }
 
-    pub fn read_body(&mut self, out_buffer: &mut [u8]) -> Result<i64, LogBufReadError> {
+    pub fn read_body(&mut self, out_buffer: &mut Vec<u8>) -> Result<i64, LogBufReadError> {
         if self.reader.buffer().len() < 2 + 1 + 8 {
             return Ok(-1);
         }
@@ -176,9 +178,9 @@ impl<'a, T: Read> LogBufReaderV4<'a, T> {
                 log_len = buf.len() as i64;
             }
             CompressMode::Zlib => {
-                let plain = decompress_zlib(&buf).map_err(|_| LogBufReadError::DecompressError)?;
-                out_buffer[..plain.len()].copy_from_slice(&plain);
-                log_len = plain.len() as i64;
+                log_len =
+                    self.decompress_zlib(&buf, out_buffer)
+                        .map_err(|_| LogBufReadError::DecompressError)? as i64;
             }
         }
 
@@ -188,22 +190,30 @@ impl<'a, T: Read> LogBufReaderV4<'a, T> {
     }
 
     pub fn read(&mut self, mut callback: impl FnMut(&str)) -> Result<(), LogBufReadError> {
-        let mut buffer = [0; SINGLE_LOG_CONTENT_MAX_LENGTH];
+        let mut buffer = Vec::with_capacity(SINGLE_LOG_CONTENT_MAX_LENGTH);
 
         self.read_header()?;
 
         loop {
             let size = self.read_body(&mut buffer)?;
 
-            // println!("size: {}", size);
             if size <= 0 {
                 break;
             }
             let content = buffer[0..size as usize].to_vec();
+
+            buffer.clear(); // for resetting inflater output buffer
+
             let content = String::from_utf8_lossy(&content);
             callback(&content);
         }
 
         Ok(())
+    }
+
+    pub fn decompress_zlib(&mut self, input: &[u8], output: &mut Vec<u8>) -> Result<usize> {
+        self.decompressor
+            .decompress_vec(input, output, FlushDecompress::Sync)?;
+        Ok(output.len())
     }
 }
